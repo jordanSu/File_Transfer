@@ -2,6 +2,7 @@
 #include<stdlib.h>
 #include<sys/types.h>
 #include<sys/socket.h>
+#include<time.h>
 #include<netinet/in.h>
 #include<strings.h>
 #include<netdb.h>
@@ -15,10 +16,10 @@
  *	./lab2 	  [get]    [TCP|UDP]   PORT_NUM
  *	argv[0]  argv[1]	argv[2]	    argv[3]	
  */
-void client(int, char*, char*, int);
-void server(int, int);
-
-int eofFlag = 0;
+void client(int, char*, char*, int, char*);
+void server(int, int, char*);
+void requestCheck(char* argv[]);
+//int eofFlag = 0;
 
 struct message {
 	int num;
@@ -26,6 +27,10 @@ struct message {
 };
 
 int main(int argc, char* argv[]) {
+	requestCheck(argv[]);
+}
+
+void requestCheck(char* argv[]) {
 	int socketfd, portno;		//socket file descriptor
 	if (strcmp(argv[1],"get") == 0) {
 		if (strcmp(argv[2],"TCP") == 0)
@@ -35,8 +40,8 @@ int main(int argc, char* argv[]) {
 		if (socketfd < 0)
 			printf("socket creating error");
 		portno = atoi(argv[3]);		//format portno and assign it
-		printf("Server Selected!");
-		server(socketfd, portno);
+		printf("Server Selected!\n");
+		server(socketfd, portno, argv[2]);
 	}
 	else if (strcmp(argv[1],"send") == 0) {
 		if (strcmp(argv[4],"TCP") == 0)
@@ -44,85 +49,110 @@ int main(int argc, char* argv[]) {
 		else if (strcmp(argv[4],"UDP") == 0)
 			socketfd = socket(AF_INET,SOCK_DGRAM,0);	//create socket and assign to socketfd with UDP protocol
 		if (socketfd < 0)
-			printf("socket creating error");
+			printf("socket creating error\n");
 		portno = atoi(argv[5]);
-		printf("Client Selected!");
-		client(socketfd, argv[2], argv[3], portno);
+		printf("Client Selected!\n");
+		client(socketfd, argv[2], argv[3], portno, argv[4]);
 	}
 }
 
-void server(int socketfd, int portno){
+void server(int socketfd, int portno, char* TCP_UDP){
 	int clilen, newsocketfd;
 	struct sockaddr_in serv_addr, cli_addr;
-	char buffer[256];
-	char filepath[256];
+	char buffer[260];
+	char filepath[280];
 	FILE* receivedFile;
 	struct message thisSocket;
+	
+	//some socket file descriptor to defined
 	bzero((char*) &serv_addr, sizeof(serv_addr));	// fill serv_addr with zero
 	serv_addr.sin_family = AF_INET;					//}
 	serv_addr.sin_port = htons(portno);				//} setup serv_addr fields
 	serv_addr.sin_addr.s_addr = INADDR_ANY;			//}
 	if (bind(socketfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0)
-		printf("Socket binding error!");
+		printf("Socket binding error!\n");
 	listen(socketfd, 5);
 	clilen = sizeof(cli_addr);
-	newsocketfd = accept(socketfd, (struct sockaddr*) &cli_addr, &clilen);
+	newsocketfd = accept(socketfd, (struct sockaddr*) &cli_addr, &clilen);	//accept connecting
 	if (newsocketfd < 0)
-		printf("Socket accepting error!");
-	mkdir("received");
+		printf("Socket accepting error!\n");
+		
+	mkdir("received");			//mkdir for received file
 	chmod("./received",0755);
-	bzero(buffer,256);
-	bzero(filepath,256);
+	
+	//to read file name
+	bzero(buffer,260);
+	bzero(filepath,280);
 	strcat(filepath,"./received/");
-	read(newsocketfd, buffer, 256);		//get file name
+	read(newsocketfd, buffer, 260);
 	strcat(filepath,buffer);
-	bzero(buffer,256);
-	printf("%s\n",filepath);
+	bzero(buffer,260);
+	printf("Received file location: %s\n",filepath);
 
+	//open new file and ready for catching data
 	receivedFile = fopen(filepath,"w");
 	if (receivedFile == NULL)
-		printf("Error creating FIle!");
+		printf("Error creating File!\n");
+		
 	while (1) {
-		if (read(newsocketfd, thisSocket, sizeof(thisSocket)) < 0)
-			printf("Socket reading error!");
+		if (read(newsocketfd, buffer, sizeof(thisSocket)) < 0)
+			printf("Socket reading error!\n");
+		memcpy(&thisSocket, buffer, sizeof(thisSocket));
 		if (thisSocket.text[0] == '\0')
 			break; 
 		fprintf(receivedFile,"%s", thisSocket.text);
+		printf("Socket %d received!\n",thisSocket.num);
 		bzero(thisSocket.text, 256);
+		bzero(buffer,260);
 	}
 }
 
-void client(int socketfd, char* fileName, char* hostName, int portno){
+void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_UDP){
 	struct sockaddr_in serv_addr;
 	struct hostent* server;
-	char buffer[256];
+	char buffer[260];
 	FILE* yourFile;
 	struct message thisSocket;
-	yourFile = fopen(fileName,"r");
+	char* data = (unsigned char*)malloc(sizeof(thisSocket));	//data is the serialized data to send
+	//printf("size of data is %d\n",sizeof(thisSocket));
+	yourFile = fopen(fileName,"r");		//open selected file
+	printf("FileName is %s",fileName);
 	if (yourFile == NULL)
-		printf("Error opening file!");
-	server = gethostbyname(hostName);
+		printf("Error opening file!\n");
+		
+	server = gethostbyname(hostName);	//analyze host name
 	if (server == NULL)
-		printf("Host not found!");
+		printf("Host not found!\n");
+	
+	//some socket file descriptor to defined
 	bzero((char*) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
 	bcopy((char*) server->h_addr, (char*) &serv_addr.sin_addr.s_addr, server->h_length);
 	serv_addr.sin_port = htons(portno);
 	if (connect(socketfd, &serv_addr, sizeof(serv_addr)) < 0)
-		printf("Socket connecting error!");
-	bzero(buffer,256);
+		printf("Socket connecting error!\n");
+		
+	//tell server what is the file name 
+	bzero(buffer,260);
 	strncpy(buffer,fileName,sizeof(fileName));
-	printf("%s\n",buffer);
-	write(socketfd, buffer, 256);
+	write(socketfd, buffer, 260);
+	
+	//start to send data
+	int count = 1;
 	while (1) {
 		bzero(thisSocket.text, 256);
 		fgets(thisSocket.text, 255, yourFile);
-		if (write(socketfd, thisSocket, sizeof(thisSocket)) < 0)
-			printf("Socket writting error!");
+		thisSocket.num = count;
+		count += 1;
+		memcpy(data, &thisSocket, sizeof(thisSocket));
+		if (write(socketfd, data, sizeof(thisSocket)) < 0)
+			printf("Socket writting error!\n");
 		if (thisSocket.text[0] == '\0')
 			break;
 	}
+	
 	fclose(yourFile);
 	bzero(thisSocket.text, 256);
-	write(socketfd, thisSocket, sizeof(thisSocket));	//send a empty socket means it is over
+	memcpy(data, &thisSocket, sizeof(thisSocket));
+	write(socketfd, data, sizeof(thisSocket));	//send a empty socket means it is over
 }
