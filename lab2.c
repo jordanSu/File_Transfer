@@ -23,11 +23,11 @@ void requestCheck(char* argv[]);
 
 struct message {
 	int num;
-	char text[256];
+	char text[1024];
 };
 
 int main(int argc, char* argv[]) {
-	requestCheck(argv[]);
+	requestCheck(argv);
 }
 
 void requestCheck(char* argv[]) {
@@ -59,8 +59,8 @@ void requestCheck(char* argv[]) {
 void server(int socketfd, int portno, char* TCP_UDP){
 	int clilen, newsocketfd;
 	struct sockaddr_in serv_addr, cli_addr;
-	char buffer[260];
-	char filepath[280];
+	char buffer[1028];
+	char filepath[1100];
 	FILE* receivedFile;
 	struct message thisSocket;
 	
@@ -81,12 +81,12 @@ void server(int socketfd, int portno, char* TCP_UDP){
 	chmod("./received",0755);
 	
 	//to read file name
-	bzero(buffer,260);
-	bzero(filepath,280);
+	bzero(buffer,1028);
+	bzero(filepath,1100);
 	strcat(filepath,"./received/");
-	read(newsocketfd, buffer, 260);
+	read(newsocketfd, buffer, 1028);
 	strcat(filepath,buffer);
-	bzero(buffer,260);
+	bzero(buffer,1028);
 	printf("Received file location: %s\n",filepath);
 
 	//open new file and ready for catching data
@@ -102,15 +102,15 @@ void server(int socketfd, int portno, char* TCP_UDP){
 			break; 
 		fprintf(receivedFile,"%s", thisSocket.text);
 		printf("Socket %d received!\n",thisSocket.num);
-		bzero(thisSocket.text, 256);
-		bzero(buffer,260);
+		bzero(thisSocket.text, 1024);
+		bzero(buffer,1028);
 	}
 }
 
 void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_UDP){
 	struct sockaddr_in serv_addr;
 	struct hostent* server;
-	char buffer[260];
+	char buffer[1024];
 	FILE* yourFile;
 	struct message thisSocket;
 	char* data = (unsigned char*)malloc(sizeof(thisSocket));	//data is the serialized data to send
@@ -133,22 +133,26 @@ void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_
 		printf("Socket connecting error!\n");
 		
 	//tell server what is the file name 
-	bzero(buffer,260);
-	strncpy(buffer,fileName,sizeof(fileName));
-	write(socketfd, buffer, 260);
+	bzero(buffer,1024);
+	strncpy(buffer,fileName,strlen(fileName));
+	printf("send filename: %s\n",buffer);
+	write(socketfd, buffer, 1024);
 	
 	//start to send data
 	int count = 1;
 	while (1) {
-		bzero(thisSocket.text, 256);
-		fgets(thisSocket.text, 255, yourFile);
-		thisSocket.num = count;
-		count += 1;
-		memcpy(data, &thisSocket, sizeof(thisSocket));
-		if (write(socketfd, data, sizeof(thisSocket)) < 0)
-			printf("Socket writting error!\n");
-		if (thisSocket.text[0] == '\0')
+		if (fgets(buffer, 1024, yourFile) == NULL)
 			break;
+		if (strlen(buffer) + strlen(thisSocket.text) >= 1024) {
+			//printf("%s",thisSocket.text);
+			thisSocket.num = count;
+			count += 1;
+			memcpy(data, &thisSocket, sizeof(thisSocket));
+			if (write(socketfd, data, sizeof(thisSocket)) < 0)
+				printf("Socket writting error!\n");
+			bzero(thisSocket.text, 1024);
+		}
+		strcat(thisSocket.text,buffer);
 	}
 	
 	fclose(yourFile);
