@@ -61,10 +61,12 @@ void requestCheck(char* argv[]) {
 void server(int socketfd, int portno, char* TCP_UDP){
 	int clilen, newsocketfd;
 	struct sockaddr_in serv_addr, cli_addr;
+	char test = ' ';
 	char buffer[1028];
 	char filepath[1100];
 	FILE* receivedFile;
 	time_t now;
+	clock_t time;
 	struct message thisSocket;
 	
 	//some socket file descriptor to defined
@@ -83,6 +85,13 @@ void server(int socketfd, int portno, char* TCP_UDP){
 	newsocketfd = accept(socketfd, (struct sockaddr*) &cli_addr, &clilen);	//accept connecting
 	if (newsocketfd < 0)
 		printf("Socket accepting error!\n");
+		
+	//test for throughput
+	time = clock();
+	write(newsocketfd, test, 1);
+	read(newsocketfd, test, 1);
+	time = clock() - time;
+	
 		
 	//make directory for received file
 	mkdir("received");
