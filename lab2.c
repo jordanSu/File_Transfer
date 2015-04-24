@@ -19,7 +19,8 @@
 void client(int, char*, char*, int, char*);
 void server(int, int, char*);
 void requestCheck(char* argv[]);
-//int eofFlag = 0;
+
+int EOFlag = 0;
 
 struct message {
 	int num;
@@ -31,8 +32,8 @@ int main(int argc, char* argv[]) {
 }
 
 void requestCheck(char* argv[]) {
-	int socketfd, portno;		//socket file descriptor
-	if (strcmp(argv[1],"get") == 0) {
+	int socketfd, portno;
+	if (strcmp(argv[1],"get") == 0) {		//if it is a server
 		if (strcmp(argv[2],"TCP") == 0)
 			socketfd = socket(AF_INET,SOCK_STREAM,0);	//create socket and assign to socketfd with TCP protocol
 		else if (strcmp(argv[2],"UDP") == 0)
@@ -43,7 +44,7 @@ void requestCheck(char* argv[]) {
 		printf("Server Selected!\n");
 		server(socketfd, portno, argv[2]);
 	}
-	else if (strcmp(argv[1],"send") == 0) {
+	else if (strcmp(argv[1],"send") == 0) {		//if it is a client
 		if (strcmp(argv[4],"TCP") == 0)
 			socketfd = socket(AF_INET,SOCK_STREAM,0);
 		else if (strcmp(argv[4],"UDP") == 0)
@@ -71,13 +72,18 @@ void server(int socketfd, int portno, char* TCP_UDP){
 	serv_addr.sin_addr.s_addr = INADDR_ANY;			//}
 	if (bind(socketfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0)
 		printf("Socket binding error!\n");
+	
+	//listen
 	listen(socketfd, 5);
+	
+	//accept
 	clilen = sizeof(cli_addr);
 	newsocketfd = accept(socketfd, (struct sockaddr*) &cli_addr, &clilen);	//accept connecting
 	if (newsocketfd < 0)
 		printf("Socket accepting error!\n");
 		
-	mkdir("received");			//mkdir for received file
+	//make directory for received file
+	mkdir("received");
 	chmod("./received",0755);
 	
 	//to read file name
@@ -105,6 +111,7 @@ void server(int socketfd, int portno, char* TCP_UDP){
 		bzero(thisSocket.text, 1024);
 		bzero(buffer,1028);
 	}
+	fclose(receivedFile);
 }
 
 void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_UDP){
@@ -114,13 +121,15 @@ void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_
 	FILE* yourFile;
 	struct message thisSocket;
 	char* data = (unsigned char*)malloc(sizeof(thisSocket));	//data is the serialized data to send
-	//printf("size of data is %d\n",sizeof(thisSocket));
-	yourFile = fopen(fileName,"r");		//open selected file
+	
+	//open selected file
+	yourFile = fopen(fileName,"r");	
 	printf("FileName is %s",fileName);
 	if (yourFile == NULL)
 		printf("Error opening file!\n");
-		
-	server = gethostbyname(hostName);	//analyze host name
+	
+	//analyze host name	
+	server = gethostbyname(hostName);
 	if (server == NULL)
 		printf("Host not found!\n");
 	
@@ -137,13 +146,14 @@ void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_
 	strncpy(buffer,fileName,strlen(fileName));
 	printf("send filename: %s\n",buffer);
 	write(socketfd, buffer, 1024);
-	
+	bzero(buffer,1024);
+	bzero(thisSocket.text,1024);
 	//start to send data
 	int count = 1;
 	while (1) {
 		if (fgets(buffer, 1024, yourFile) == NULL)
-			break;
-		if (strlen(buffer) + strlen(thisSocket.text) >= 1024) {
+			EOFlag = 1;
+		if (strlen(buffer) + strlen(thisSocket.text) >= 1024 || EOFlag ==1) {
 			//printf("%s",thisSocket.text);
 			thisSocket.num = count;
 			count += 1;
@@ -151,12 +161,14 @@ void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_
 			if (write(socketfd, data, sizeof(thisSocket)) < 0)
 				printf("Socket writting error!\n");
 			bzero(thisSocket.text, 1024);
+			if (EOFlag == 1)
+				break;
 		}
 		strcat(thisSocket.text,buffer);
 	}
 	
 	fclose(yourFile);
-	bzero(thisSocket.text, 256);
+	bzero(thisSocket.text, 1024);
 	memcpy(data, &thisSocket, sizeof(thisSocket));
 	write(socketfd, data, sizeof(thisSocket));	//send a empty socket means it is over
 }
