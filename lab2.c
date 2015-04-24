@@ -19,6 +19,7 @@
 void client(int, char*, char*, int, char*);
 void server(int, int, char*);
 void requestCheck(char* argv[]);
+double getThroughput(time_t, time_t);
 
 int EOFlag = 0;
 
@@ -63,6 +64,7 @@ void server(int socketfd, int portno, char* TCP_UDP){
 	char buffer[1028];
 	char filepath[1100];
 	FILE* receivedFile;
+	time_t now;
 	struct message thisSocket;
 	
 	//some socket file descriptor to defined
@@ -99,7 +101,9 @@ void server(int socketfd, int portno, char* TCP_UDP){
 	receivedFile = fopen(filepath,"w");
 	if (receivedFile == NULL)
 		printf("Error creating File!\n");
-		
+	
+	now = time(0);
+	printf("File receive started at: %s",ctime(&now));
 	while (1) {
 		if (read(newsocketfd, buffer, sizeof(thisSocket)) < 0)
 			printf("Socket reading error!\n");
@@ -107,10 +111,12 @@ void server(int socketfd, int portno, char* TCP_UDP){
 		if (thisSocket.text[0] == '\0')
 			break; 
 		fprintf(receivedFile,"%s", thisSocket.text);
-		printf("Socket %d received!\n",thisSocket.num);
+		//printf("Socket %d received!\n",thisSocket.num);
 		bzero(thisSocket.text, 1024);
 		bzero(buffer,1028);
 	}
+	now = time(0);
+	printf("File receive end at: %s",ctime(&now));
 	fclose(receivedFile);
 }
 
@@ -120,6 +126,7 @@ void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_
 	char buffer[1024];
 	FILE* yourFile;
 	struct message thisSocket;
+	time_t start, end;
 	char* data = (unsigned char*)malloc(sizeof(thisSocket));	//data is the serialized data to send
 	
 	//open selected file
@@ -149,6 +156,8 @@ void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_
 	bzero(buffer,1024);
 	bzero(thisSocket.text,1024);
 	//start to send data
+	start = time(0);
+	printf("Transmit started at: %s",ctime(&start));
 	int count = 1;
 	while (1) {
 		if (fgets(buffer, 1024, yourFile) == NULL)
@@ -167,8 +176,15 @@ void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_
 		strcat(thisSocket.text,buffer);
 	}
 	
-	fclose(yourFile);
 	bzero(thisSocket.text, 1024);
 	memcpy(data, &thisSocket, sizeof(thisSocket));
 	write(socketfd, data, sizeof(thisSocket));	//send a empty socket means it is over
+	end = time(0);
+	printf("Transmit completed at: %s",ctime(&end));
+	printf("The throughput is %f bps",getThroughput(start,end));
+	fclose(yourFile);
+}
+
+double getThroughput(time_t start, time_t end) {
+	return difftime(end,start);
 }
