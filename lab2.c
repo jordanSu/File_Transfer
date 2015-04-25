@@ -66,7 +66,7 @@ void server(int socketfd, int portno, char* TCP_UDP){
 	char filepath[1100];
 	FILE* receivedFile;
 	time_t now;
-	clock_t time;
+	clock_t throughput;
 	struct message thisSocket;
 	
 	//some socket file descriptor to defined
@@ -87,11 +87,11 @@ void server(int socketfd, int portno, char* TCP_UDP){
 		printf("Socket accepting error!\n");
 		
 	//test for throughput
-	time = clock();
+	throughput = clock();
 	write(newsocketfd, test, 1);
 	read(newsocketfd, test, 1);
-	time = clock() - time;
-	
+	throughput = clock() - throughput;
+	printf("It used %f seconds", throughput / CLOCKS_PER_SEC);
 		
 	//make directory for received file
 	mkdir("received");
@@ -132,10 +132,12 @@ void server(int socketfd, int portno, char* TCP_UDP){
 void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_UDP){
 	struct sockaddr_in serv_addr;
 	struct hostent* server;
+	char test = ' ';
 	char buffer[1024];
 	FILE* yourFile;
 	struct message thisSocket;
-	time_t start, end;
+	time_t now;
+	clock_t throughput;
 	char* data = (unsigned char*)malloc(sizeof(thisSocket));	//data is the serialized data to send
 	
 	//open selected file
@@ -164,9 +166,17 @@ void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_
 	write(socketfd, buffer, 1024);
 	bzero(buffer,1024);
 	bzero(thisSocket.text,1024);
+	
+	//test for throughput
+	throughput = clock();
+	read(socketfd, test, 1);
+	write(socketfd, test, 1);
+	throughput = clock() - throughput;
+	printf("It used %f seconds", throughput / CLOCKS_PER_SEC);
+	
 	//start to send data
-	start = time(0);
-	printf("Transmit started at: %s",ctime(&start));
+	now = time(0);
+	printf("Transmit started at: %s",ctime(&now));
 	int count = 1;
 	while (1) {
 		if (fgets(buffer, 1024, yourFile) == NULL)
@@ -188,12 +198,7 @@ void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_
 	bzero(thisSocket.text, 1024);
 	memcpy(data, &thisSocket, sizeof(thisSocket));
 	write(socketfd, data, sizeof(thisSocket));	//send a empty socket means it is over
-	end = time(0);
-	printf("Transmit completed at: %s",ctime(&end));
-	printf("The throughput is %f bps",getThroughput(start,end));
+	now = time(0);
+	printf("Transmit completed at: %s",ctime(&now));
 	fclose(yourFile);
-}
-
-double getThroughput(time_t start, time_t end) {
-	return difftime(end,start);
 }
