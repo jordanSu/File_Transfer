@@ -61,7 +61,8 @@ void requestCheck(char* argv[]) {
 void server(int socketfd, int portno, char* TCP_UDP){
 	int clilen, newsocketfd;
 	struct sockaddr_in serv_addr, cli_addr;
-	char test = ' ';
+	char test[1];
+	test[0] = 'a';
 	char buffer[1028];
 	char filepath[1100];
 	FILE* receivedFile;
@@ -86,13 +87,6 @@ void server(int socketfd, int portno, char* TCP_UDP){
 	if (newsocketfd < 0)
 		printf("Socket accepting error!\n");
 		
-	//test for throughput
-	throughput = clock();
-	write(newsocketfd, test, 1);
-	read(newsocketfd, test, 1);
-	throughput = clock() - throughput;
-	printf("It used %f seconds", throughput / CLOCKS_PER_SEC);
-		
 	//make directory for received file
 	mkdir("received");
 	chmod("./received",0755);
@@ -105,6 +99,14 @@ void server(int socketfd, int portno, char* TCP_UDP){
 	strcat(filepath,buffer);
 	bzero(buffer,1028);
 	printf("Received file location: %s\n",filepath);
+	
+	//test for throughput
+	//sleep(2);
+	throughput = clock();
+	write(newsocketfd, test, 1);
+	read(newsocketfd, test, 1);
+	throughput = clock() - throughput;
+	printf("It used %f seconds\n", throughput);
 
 	//open new file and ready for catching data
 	receivedFile = fopen(filepath,"w");
@@ -132,7 +134,8 @@ void server(int socketfd, int portno, char* TCP_UDP){
 void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_UDP){
 	struct sockaddr_in serv_addr;
 	struct hostent* server;
-	char test = ' ';
+	char test[1];
+	test[0] = 'a';
 	char buffer[1024];
 	FILE* yourFile;
 	struct message thisSocket;
@@ -142,7 +145,7 @@ void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_
 	
 	//open selected file
 	yourFile = fopen(fileName,"r");	
-	printf("FileName is %s",fileName);
+	printf("FileName is %s\n",fileName);
 	if (yourFile == NULL)
 		printf("Error opening file!\n");
 	
@@ -162,22 +165,23 @@ void client(int socketfd, char* fileName, char* hostName, int portno, char* TCP_
 	//tell server what is the file name 
 	bzero(buffer,1024);
 	strncpy(buffer,fileName,strlen(fileName));
-	printf("send filename: %s\n",buffer);
 	write(socketfd, buffer, 1024);
 	bzero(buffer,1024);
 	bzero(thisSocket.text,1024);
 	
 	//test for throughput
+	//sleep(1);
 	throughput = clock();
 	read(socketfd, test, 1);
 	write(socketfd, test, 1);
 	throughput = clock() - throughput;
-	printf("It used %f seconds", throughput / CLOCKS_PER_SEC);
+	printf("It used %f seconds\n", throughput);
 	
 	//start to send data
 	now = time(0);
 	printf("Transmit started at: %s",ctime(&now));
 	int count = 1;
+	
 	while (1) {
 		if (fgets(buffer, 1024, yourFile) == NULL)
 			EOFlag = 1;
